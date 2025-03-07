@@ -1,0 +1,21 @@
+name: Check Website Links
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨2點運行
+  workflow_dispatch:
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+      - name: Run link checking script
+        run: python checkWeblink.py
