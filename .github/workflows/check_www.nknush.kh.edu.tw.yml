@@ -2,7 +2,7 @@ name: Check Website Links
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # 每天凌晨2點運行
+    - cron: '0 18 * * *'  # 每天凌晨2點運行
   workflow_dispatch:
 
 jobs:
