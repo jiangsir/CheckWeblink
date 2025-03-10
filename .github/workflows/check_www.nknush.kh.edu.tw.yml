@@ -27,6 +27,14 @@ jobs:
           python --version
           pip list | grep -E "requests|beautifulsoup4|urllib3"
       
+      - name: Check environment variables
+        run: |
+          if [ -n "$EMAIL_APP_PASSWORD" ]; then 
+            echo "EMAIL_APP_PASSWORD is set"
+          else
+            echo "EMAIL_APP_PASSWORD is NOT set"
+          fi
+      
       - name: Run link checking script
         run: python checkWeblink.py
         continue-on-error: true

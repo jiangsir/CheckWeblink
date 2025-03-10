@@ -295,9 +295,8 @@ def send_report_email(recipient_email, subject, broken_links_info, checked_url, 
         
         # 安全地獲取應用程式密碼
         # 方法 1: 環境變數
-        ## app_password = os.environ.get('EMAIL_APP_PASSWORD')
-        app_password = 'mgmmxskqizwvzslj'
-        
+        app_password = os.environ.get('EMAIL_APP_PASSWORD')
+              
         # 如果環境變數未設置，則提示輸入
         if not app_password:
             app_password = getpass.getpass('請輸入應用程式密碼: ')
