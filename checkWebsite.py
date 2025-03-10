@@ -250,7 +250,7 @@ def main():
         'https://www.nknush.kh.edu.tw',
         'https://zerojudge.tw',
         'https://apcs.zerojudge.tw',
-        'https://dump.zerojudge.tw',
+        'https://dump.zerojudge.tw/Login',
         'https://slave1.zerojudge.tw',
         'https://ashs.zerojudge.tw',
     ]
