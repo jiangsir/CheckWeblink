@@ -36,3 +36,6 @@ python checkWeblink.py
 
 # 檢查其他網站
 python checkWeblink.py https://example.com
+
+# 檢查各個重要網站
+python checkWebsite.py
