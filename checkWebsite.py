@@ -244,6 +244,85 @@ def send_report_email(recipient_email, subject, websites_status, elapsed_time):
         print(f"發送報告郵件時發生錯誤: {e}")
         return False
 
+def send_telegram_message(message, chat_id=None, bot_token=None):
+    """發送訊息到 Telegram"""
+    try:
+        # 從環境變數獲取 Telegram Bot Token 和 Chat ID
+        bot_token = bot_token or os.environ.get('TELEGRAM_BOT_TOKEN')
+        chat_id = chat_id or os.environ.get('TELEGRAM_CHAT_ID')
+        
+        # 檢查是否有必要的配置
+        if not bot_token or not chat_id:
+            print("❌ 缺少 Telegram 配置 (TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID)")
+            return False
+            
+        # 發送請求到 Telegram Bot API
+        api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        data = {
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': 'HTML'  # 支援 HTML 格式
+        }
+        
+        response = requests.post(api_url, data=data)
+        
+        # 檢查請求是否成功
+        if response.status_code == 200:
+            print(f"✓ Telegram 通知已發送")
+            return True
+        else:
+            print(f"⚠️ 發送 Telegram 通知失敗: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 發送 Telegram 通知時發生錯誤: {e}")
+        return False
+
+def format_telegram_message(websites_status, elapsed_time):
+    """格式化 Telegram 訊息內容"""
+    # 取得環境信息
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    current_user = getpass.getuser()
+    
+    # 統計結果
+    total_sites = len(websites_status)
+    online_sites = sum(1 for site in websites_status if site['status'] == 'online')
+    offline_sites = total_sites - online_sites
+    
+    # 建立訊息標頭
+    if offline_sites > 0:
+        message = f"⚠️ <b>網站可用性警報</b>\n\n"
+    else:
+        message = f"✅ <b>網站可用性檢查</b>\n\n"
+    
+    # 添加摘要資訊
+    message += f"<b>檢測時間:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    message += f"<b>耗時:</b> {elapsed_time:.2f} 秒\n"
+    message += f"<b>檢測資訊:</b> {hostname} ({ip_address}), 使用者: {current_user}\n\n"
+    
+    # 添加統計資訊
+    message += f"<b>檢測結果:</b> {online_sites}/{total_sites} 個網站運作正常\n\n"
+    
+    # 如果有網站異常，列出它們
+    if offline_sites > 0:
+        message += "<b>異常網站:</b>\n"
+        for site in websites_status:
+            if site['status'] != 'online':
+                status_text = "逾時" if site['status'] == 'timeout' else "異常"
+                error_detail = site.get('error') or '無詳細資訊'
+                response_time = f", 回應時間: {site['response_time']:.2f}秒" if site['response_time'] else ""
+                status_code = f", 狀態碼: {site['status_code']}" if site['status_code'] else ""
+                
+                message += f"❌ <a href='{site['url']}'>{site['url']}</a>: {status_text}{response_time}{status_code}\n"
+                message += f"   錯誤: {error_detail}\n"
+    
+    # 如果訊息過長，截斷它，並加上說明
+    if len(message) > 4000:
+        message = message[:3950] + "\n\n... (訊息因長度限制而被截斷)"
+    
+    return message
+
 def main():
     # 定義要檢測的重要網站清單
     websites = [
@@ -289,16 +368,21 @@ def main():
             if site['status'] != 'online':
                 print(f"- {site['url']}: {site['error']}")
     
-    # 只有當有異常網站時才發送郵件
+    # 準備 Telegram 訊息
+    telegram_message = format_telegram_message(all_results, elapsed_time)
+    
+    # 只有當有異常網站時才發送郵件和 Telegram 通知
     if offline_sites > 0:
         email_subject = f"⚠️ 網站可用性警報 - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         send_report_email(recipient_email, email_subject, all_results, elapsed_time)
+        send_telegram_message(telegram_message)  # 發送 Telegram 通知
     else:
         # 可選：每天只發送一次正常報告
         current_hour = datetime.now().hour
         if current_hour == 8:  # 每天早上 8 點發送
             email_subject = f"✓ 網站可用性日報 - {datetime.now().strftime('%Y-%m-%d')}"
             send_report_email(recipient_email, email_subject, all_results, elapsed_time)
+            send_telegram_message(telegram_message)  # 發送 Telegram 通知
 
 if __name__ == "__main__":
     main()
