@@ -377,7 +377,7 @@ def main():
         send_report_email(recipient_email, email_subject, all_results, elapsed_time)
         send_telegram_message(telegram_message)  # 發送 Telegram 通知
     else:
-        send_telegram_message(telegram_message)  # 發送 Telegram 通知
+        ## send_telegram_message(telegram_message)  # 發送 Telegram 通知
         # 可選：每天只發送一次正常報告
         current_hour = datetime.now().hour
         if current_hour == 8:  # 每天早上 8 點發送
