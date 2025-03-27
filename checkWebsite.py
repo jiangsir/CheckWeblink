@@ -570,12 +570,14 @@ def main():
     if offline_sites > 0:
         email_subject = f"⚠️ 網站可用性警報 - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         send_report_email(recipient_email, email_subject, all_results, elapsed_time, ssl_results)  # 加入 ssl_results 參數
+        send_telegram_message(telegram_message)  # 發送 Telegram 通知
     else:
         current_hour = datetime.now().hour
         if current_hour == 8:
             email_subject = f"✓ 網站可用性日報 - {datetime.now().strftime('%Y-%m-%d')}"
             send_report_email(recipient_email, email_subject, all_results, elapsed_time, ssl_results)  # 加入 ssl_results 參數
-    
+            send_telegram_message(telegram_message)  # 發送 Telegram 通知
+
     # 處理 SSL 憑證到期警告 (只有即將到期的憑證才需要額外單獨發送)
     if ssl_warning_message:
         print("\n發送 SSL 憑證到期警告...")
