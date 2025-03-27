@@ -343,40 +343,85 @@ def send_report_email(recipient_email, subject, websites_status, elapsed_time, s
         print(f"發送報告郵件時發生錯誤: {e}")
         return False
 
-def send_telegram_message(message, chat_id=None, bot_token=None):
-    """發送訊息到 Telegram"""
+def send_telegram_message(message):
+    """發送消息到 Telegram"""
     try:
-        # 從環境變數獲取 Telegram Bot Token 和 Chat ID
-        bot_token = bot_token or os.environ.get('TELEGRAM_BOT_TOKEN')
-        chat_id = chat_id or os.environ.get('TELEGRAM_CHAT_ID')
+        # 檢查是否設定了 Telegram 相關環境變數
+        telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
         
-        # 檢查是否有必要的配置
-        if not bot_token or not chat_id:
-            print("❌ 缺少 Telegram 配置 (TELEGRAM_BOT_TOKEN 或 TELEGRAM_CHAT_ID)")
-            return False
-            
-        # 發送請求到 Telegram Bot API
-        api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        data = {
-            'chat_id': chat_id,
-            'text': message,
-            'parse_mode': 'HTML'  # 支援 HTML 格式
+        # 如果未設定 Telegram 相關資訊，則直接返回
+        if not telegram_bot_token or not telegram_chat_id:
+            print("未設定 Telegram Bot Token 或 Chat ID，跳過 Telegram 通知")
+            return
+        
+        # 淨化訊息，移除或轉義有問題的 HTML 內容
+        # 只保留 Telegram 支持的 HTML 標籤
+        import re
+        
+        # 移除所有 HTML 標籤，除了 Telegram 支持的標籤
+        allowed_tags = ['b', 'i', 'u', 'a', 'code', 'pre', 's']
+        
+        # 先移除 < 和 > 字符（除了允許的標籤外）
+        # 這種方法可能不是最優，但能確保訊息能被發送
+        sanitized_message = message
+        
+        # 將代碼片段或類似代碼的部分用 <code> 標籤包裝
+        # 例如: urllib3.connection.httpsconnection 變為 <code>urllib3.connection.httpsconnection</code>
+        code_pattern = r'([a-zA-Z0-9_\.]+\.[a-zA-Z0-9_\.]+\.[a-zA-Z0-9_\.]+)'
+        sanitized_message = re.sub(code_pattern, r'<code>\1</code>', sanitized_message)
+        
+        # 替換可能的問題字符
+        sanitized_message = sanitized_message.replace("<", "&lt;").replace(">", "&gt;")
+        
+        # 恢復允許的 HTML 標籤
+        for tag in allowed_tags:
+            sanitized_message = sanitized_message.replace(f"&lt;{tag}&gt;", f"<{tag}>")
+            sanitized_message = sanitized_message.replace(f"&lt;/{tag}&gt;", f"</{tag}>")
+            # 處理帶屬性的標籤，主要是 <a href="...">
+            sanitized_message = re.sub(
+                f"&lt;{tag} ([^&]*)&gt;", 
+                f"<{tag} \\1>", 
+                sanitized_message
+            )
+        
+        # 發送消息到 Telegram
+        telegram_api_url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
+        payload = {
+            "chat_id": telegram_chat_id,
+            "text": sanitized_message,
+            "parse_mode": "HTML"  # 支援 HTML 格式
         }
         
-        response = requests.post(api_url, data=data)
+        response = requests.post(telegram_api_url, json=payload, timeout=10)
         
-        # 檢查請求是否成功
         if response.status_code == 200:
-            print(f"✓ Telegram 通知已發送")
-            return True
+            print(f"已成功發送 Telegram 通知")
         else:
-            print(f"⚠️ 發送 Telegram 通知失敗: {response.text}")
-            return False
+            print(f"發送 Telegram 通知失敗，狀態碼: {response.status_code}, 回應: {response.text}")
             
+            # 如果 HTML 解析失敗，嘗試發送純文本
+            if "can't parse entities" in response.text:
+                print("嘗試以純文本格式重新發送...")
+                # 移除所有 HTML 標籤
+                plain_text = re.sub(r'<[^>]+>', '', sanitized_message)
+                plain_text = plain_text.replace("&lt;", "<").replace("&gt;", ">")
+                
+                payload = {
+                    "chat_id": telegram_chat_id,
+                    "text": plain_text,
+                    "parse_mode": ""  # 不使用任何解析模式
+                }
+                
+                response = requests.post(telegram_api_url, json=payload, timeout=10)
+                if response.status_code == 200:
+                    print(f"已成功以純文本格式發送 Telegram 通知")
+                else:
+                    print(f"純文本發送也失敗，狀態碼: {response.status_code}, 回應: {response.text}")
+    
     except Exception as e:
-        print(f"❌ 發送 Telegram 通知時發生錯誤: {e}")
-        return False
-
+        print(f"發送 Telegram 通知時發生錯誤: {str(e)}")
+        
 def format_telegram_message(websites_status, elapsed_time, ssl_results=None):
     """格式化 Telegram 訊息內容，包含 SSL 憑證資訊"""
     # 取得環境信息
