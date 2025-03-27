@@ -99,10 +99,10 @@ def check_ssl_certificate(url):
         now = datetime.now()
         remaining_days = (expiry_date - now).days
         
-        if remaining_days <= 0:
+        if (remaining_days <= 0):
             status = "已過期"
             alert_level = "danger"
-        elif remaining_days <= 14:
+        elif (remaining_days <= 14):
             status = "即將到期"
             alert_level = "warning"
         else:
@@ -129,8 +129,8 @@ def check_ssl_certificate(url):
             'error': str(e)
         }
 
-def send_report_email(recipient_email, subject, websites_status, elapsed_time):
-    """發送檢測報告郵件"""
+def send_report_email(recipient_email, subject, websites_status, elapsed_time, ssl_results=None):
+    """發送檢測報告郵件，包含 SSL 憑證資訊"""
     try:
         # 取得環境信息
         hostname = socket.gethostname()
@@ -255,6 +255,61 @@ def send_report_email(recipient_email, subject, websites_status, elapsed_time):
         </html>
         """
         
+        # 添加 SSL 憑證資訊部分
+        if ssl_results:
+            email_body += """
+                <h3>SSL 憑證狀態:</h3>
+                <table>
+                    <tr>
+                        <th>域名</th>
+                        <th>狀態</th>
+                        <th>到期日</th>
+                        <th>剩餘天數</th>
+                    </tr>
+            """
+            
+            for cert in ssl_results:
+                hostname = cert['hostname']
+                
+                if cert['remaining_days'] is None:
+                    status_class = "error"
+                    status_text = "無法檢查"
+                    expiry_date = "未知"
+                    remaining_days = "N/A"
+                elif cert['remaining_days'] <= 0:
+                    status_class = "error"
+                    status_text = "已過期"
+                    expiry_date = cert['expiry_date'].strftime('%Y-%m-%d')
+                    remaining_days = f"{cert['remaining_days']} 天"
+                elif cert['remaining_days'] <= 7:
+                    status_class = "error"
+                    status_text = "即將到期 (緊急)"
+                    expiry_date = cert['expiry_date'].strftime('%Y-%m-%d')
+                    remaining_days = f"{cert['remaining_days']} 天"
+                elif cert['remaining_days'] <= 14:
+                    status_class = "warning"
+                    status_text = "即將到期"
+                    expiry_date = cert['expiry_date'].strftime('%Y-%m-%d')
+                    remaining_days = f"{cert['remaining_days']} 天"
+                else:
+                    status_class = "success"
+                    status_text = "有效"
+                    expiry_date = cert['expiry_date'].strftime('%Y-%m-%d')
+                    remaining_days = f"{cert['remaining_days']} 天"
+                
+                email_body += f"""
+                    <tr>
+                        <td>{hostname}</td>
+                        <td class="{status_class}">{status_text}</td>
+                        <td>{expiry_date}</td>
+                        <td>{remaining_days}</td>
+                    </tr>
+                """
+            
+            email_body += """
+                </table>
+            """
+        
         msg.attach(MIMEText(email_body, 'html'))
         
         # 連接到 SMTP 伺服器並發送郵件
@@ -322,8 +377,8 @@ def send_telegram_message(message, chat_id=None, bot_token=None):
         print(f"❌ 發送 Telegram 通知時發生錯誤: {e}")
         return False
 
-def format_telegram_message(websites_status, elapsed_time):
-    """格式化 Telegram 訊息內容"""
+def format_telegram_message(websites_status, elapsed_time, ssl_results=None):
+    """格式化 Telegram 訊息內容，包含 SSL 憑證資訊"""
     # 取得環境信息
     hostname = socket.gethostname()
     ip_address = socket.gethostbyname(hostname)
@@ -360,6 +415,43 @@ def format_telegram_message(websites_status, elapsed_time):
                 
                 message += f"❌ <a href='{site['url']}'>{site['url']}</a>: {status_text}{response_time}{status_code}\n"
                 message += f"   錯誤: {error_detail}\n"
+    
+    # 如果有 SSL 憑證資訊，添加到報告中
+    if ssl_results:
+        # 創建一個網址到 SSL 結果的映射，方便查找
+        ssl_map = {cert['hostname']: cert for cert in ssl_results}
+        
+        message += "\n<b>SSL 憑證狀態:</b>\n"
+        
+        for site in websites_status:
+            if site['status'] == 'online' and site['url'].startswith('https'):
+                from urllib.parse import urlparse
+                hostname = urlparse(site['url']).netloc
+                
+                if hostname in ssl_map:
+                    cert = ssl_map[hostname]
+                    
+                    # 根據剩餘天數決定顯示圖標
+                    if cert['remaining_days'] is None:
+                        icon = "❓"  # 未知
+                        status_text = "無法檢查"
+                    elif cert['remaining_days'] <= 0:
+                        icon = "🚨"  # 已過期
+                        status_text = f"已過期 ({cert['remaining_days']} 天)"
+                    elif cert['remaining_days'] <= 7:
+                        icon = "⚠️"  # 7天內到期
+                        status_text = f"即將到期 (剩餘 {cert['remaining_days']} 天)"
+                    elif cert['remaining_days'] <= 14:
+                        icon = "⚠️"  # 14天內到期
+                        status_text = f"即將到期 (剩餘 {cert['remaining_days']} 天)"
+                    else:
+                        icon = "✅"  # 有效
+                        status_text = f"有效 (剩餘 {cert['remaining_days']} 天)"
+                    
+                    # 到期日期
+                    expires_text = f", 到期日: {cert['expiry_date'].strftime('%Y-%m-%d')}" if cert['expiry_date'] else ""
+                    
+                    message += f"{icon} <b>{hostname}</b>: {status_text}{expires_text}\n"
     
     # 如果訊息過長，截斷它，並加上說明
     if len(message) > 4000:
@@ -468,30 +560,30 @@ def main():
         for cert in ssl_warnings:
             print(f"- {cert['hostname']}: 剩餘 {cert['remaining_days']} 天，到期日: {cert['expiry_date'].strftime('%Y-%m-%d')}")
     
-    # 準備網站可用性的 Telegram 訊息
-    telegram_message = format_telegram_message(all_results, elapsed_time)
+    # 準備網站可用性的 Telegram 訊息，將 SSL 結果一併傳入
+    telegram_message = format_telegram_message(all_results, elapsed_time, ssl_results)
     
-    # 準備 SSL 憑證的 Telegram 訊息
-    ssl_message = format_ssl_telegram_message(ssl_results)
+    # 準備單獨的 SSL 憑證警告訊息 (僅包含即將到期的憑證)
+    ssl_warning_message = format_ssl_telegram_message(ssl_results)
     
-    # 處理網站可用性通知
+    # 處理網站可用性通知 (已包含 SSL 狀態)
     if offline_sites > 0:
-        # 如果有網站無法訪問，發送警報
         email_subject = f"⚠️ 網站可用性警報 - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        send_report_email(recipient_email, email_subject, all_results, elapsed_time)
-        send_telegram_message(telegram_message)  # 發送 Telegram 通知
+        send_report_email(recipient_email, email_subject, all_results, elapsed_time, ssl_results)  # 加入 ssl_results 參數
     else:
-        # 所有網站都正常時，僅在每天早上 8 點發送日報
         current_hour = datetime.now().hour
-        if current_hour == 8:  # 每天早上 8 點發送
+        if current_hour == 8:
             email_subject = f"✓ 網站可用性日報 - {datetime.now().strftime('%Y-%m-%d')}"
-            send_report_email(recipient_email, email_subject, all_results, elapsed_time)
-            send_telegram_message(telegram_message)  # 發送 Telegram 通知
+            send_report_email(recipient_email, email_subject, all_results, elapsed_time, ssl_results)  # 加入 ssl_results 參數
     
-    # 處理 SSL 憑證到期警告 (無論網站可用性如何，只要有即將到期的憑證就發送)
-    if ssl_message:
+    # 處理 SSL 憑證到期警告 (只有即將到期的憑證才需要額外單獨發送)
+    if ssl_warning_message:
         print("\n發送 SSL 憑證到期警告...")
-        send_telegram_message(ssl_message)  # 發送 SSL 憑證警告
+        # 如果不想重複發送，可以考慮只在非報告日或有特別緊急情況時發送
+        # 例如，只在憑證剩餘天數 <= 7 天時才發送額外警告
+        critical_ssl_warnings = [cert for cert in ssl_results if cert['remaining_days'] is not None and cert['remaining_days'] <= 7]
+        if critical_ssl_warnings:
+            send_telegram_message(ssl_warning_message)  # 發送 SSL 憑證警告
 
 if __name__ == "__main__":
     main()
