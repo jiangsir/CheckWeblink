@@ -368,43 +368,13 @@ def send_telegram_message(message):
             print("未設定 Telegram Bot Token 或 Chat ID，跳過 Telegram 通知")
             return
 
-        # 淨化訊息，移除或轉義有問題的 HTML 內容
-        # 只保留 Telegram 支持的 HTML 標籤
-        import re
-
-        # 移除所有 HTML 標籤，除了 Telegram 支持的標籤
-        allowed_tags = ["b", "i", "u", "a", "code", "pre", "s"]
-
-        # 先移除 < 和 > 字符（除了允許的標籤外）
-        # 這種方法可能不是最優，但能確保訊息能被發送
-        sanitized_message = message
-
-        # 將代碼片段或類似代碼的部分用 <code> 標籤包裝
-        # 例如: urllib3.connection.httpsconnection 變為 <code>urllib3.connection.httpsconnection</code>
-        code_pattern = r"([a-zA-Z0-9_\.]+\.[a-zA-Z0-9_\.]+\.[a-zA-Z0-9_\.]+)"
-        sanitized_message = re.sub(code_pattern, r"<code>\1</code>", sanitized_message)
-
-        # 替換可能的問題字符
-        sanitized_message = sanitized_message.replace("<", "&lt;").replace(">", "&gt;")
-
-        # 恢復允許的 HTML 標籤
-        for tag in allowed_tags:
-            sanitized_message = sanitized_message.replace(f"&lt;{tag}&gt;", f"<{tag}>")
-            sanitized_message = sanitized_message.replace(
-                f"&lt;/{tag}&gt;", f"</{tag}>"
-            )
-            # 處理帶屬性的標籤，主要是 <a href="...">
-            sanitized_message = re.sub(
-                f"&lt;{tag} ([^&]*)&gt;", f"<{tag} \\1>", sanitized_message
-            )
-
+        print("準備發送 Telegram 通知...")
+        
         # 發送消息到 Telegram
-        telegram_api_url = (
-            f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
-        )
+        telegram_api_url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"
         payload = {
             "chat_id": telegram_chat_id,
-            "text": sanitized_message,
+            "text": message,
             "parse_mode": "HTML",  # 支援 HTML 格式
         }
 
@@ -413,17 +383,15 @@ def send_telegram_message(message):
         if response.status_code == 200:
             print(f"已成功發送 Telegram 通知")
         else:
-            print(
-                f"發送 Telegram 通知失敗，狀態碼: {response.status_code}, 回應: {response.text}"
-            )
+            print(f"發送 Telegram 通知失敗，狀態碼: {response.status_code}, 回應: {response.text}")
 
             # 如果 HTML 解析失敗，嘗試發送純文本
             if "can't parse entities" in response.text:
-                print("嘗試以純文本格式重新發送...")
+                print("Telegram HTML 解析失敗，嘗試以純文本格式重新發送...")
                 # 移除所有 HTML 標籤
-                plain_text = re.sub(r"<[^>]+>", "", sanitized_message)
-                plain_text = plain_text.replace("&lt;", "<").replace("&gt;", ">")
-
+                import re
+                plain_text = re.sub(r"<[^>]+>", "", message)
+                
                 payload = {
                     "chat_id": telegram_chat_id,
                     "text": plain_text,
@@ -434,9 +402,7 @@ def send_telegram_message(message):
                 if response.status_code == 200:
                     print(f"已成功以純文本格式發送 Telegram 通知")
                 else:
-                    print(
-                        f"純文本發送也失敗，狀態碼: {response.status_code}, 回應: {response.text}"
-                    )
+                    print(f"純文本發送也失敗，狀態碼: {response.status_code}, 回應: {response.text}")
 
     except Exception as e:
         print(f"發送 Telegram 通知時發生錯誤: {str(e)}")
@@ -493,7 +459,7 @@ def format_telegram_message(websites_status, elapsed_time, ssl_results=None):
         ssl_map = {cert["hostname"]: cert for cert in ssl_results}
 
         message += "\n<b>SSL 憑證狀態:</b>\n"
-
+        print(websites_status, websites_status)
         for site in websites_status:
             if site["status"] == "online" and site["url"].startswith("https"):
                 from urllib.parse import urlparse
@@ -590,10 +556,10 @@ def main():
     websites = [
         "https://www.nknush.kh.edu.tw",
         "https://zerojudge.tw",
-        "https://apcs.zerojudge.tw",
-        "https://dump.zerojudge.tw/Login",
-        "https://slave1.zerojudge.tw",
         "https://ashs.zerojudge.tw",
+        "https://slave1.zerojudge.tw",
+        "https://dump.zerojudge.tw/Login",
+        "https://apcs.zerojudge.tw",
     ]
 
     # 如果有命令列參數，使用提供的網站列表
