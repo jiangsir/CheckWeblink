@@ -527,7 +527,9 @@ def format_telegram_message(websites_status, elapsed_time, ssl_results=None):
                         else ""
                     )
 
-                    message += f"{icon} https://{hostname}: {status_text}{expires_text}\n"
+                    message += (
+                        f"{icon} https://{hostname}: {status_text}{expires_text}\n"
+                    )
 
     # 如果訊息過長，截斷它，並加上說明
     if len(message) > 4000:
@@ -671,7 +673,7 @@ def main():
         send_telegram_message(telegram_message)  # 發送 Telegram 通知
     else:
         current_hour = datetime.now().hour
-        if current_hour == 8 or current_hour == 9:
+        if 8 <= current_hour <= 12:
             email_subject = f"✓ 網站可用性日報 - {datetime.now().strftime('%Y-%m-%d')}"
             send_report_email(
                 recipient_email, email_subject, all_results, elapsed_time, ssl_results
