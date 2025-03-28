@@ -639,7 +639,7 @@ def main():
         send_telegram_message(telegram_message)  # 發送 Telegram 通知
     else:
         current_hour = datetime.now().hour
-        if 8 <= current_hour <= 12:
+        if 8 <= current_hour < 9:
             email_subject = f"✓ 網站可用性日報 - {datetime.now().strftime('%Y-%m-%d')}"
             send_report_email(
                 recipient_email, email_subject, all_results, elapsed_time, ssl_results
