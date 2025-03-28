@@ -527,7 +527,7 @@ def format_telegram_message(websites_status, elapsed_time, ssl_results=None):
                         else ""
                     )
 
-                    message += f"{icon} <a href='https://{hostname}'>{hostname}</a>: {status_text}{expires_text}\n"
+                    message += f"{icon} <a href=\"https://{hostname}\">{hostname}</a>::: {status_text}{expires_text}\n"
 
     # 如果訊息過長，截斷它，並加上說明
     if len(message) > 4000:
